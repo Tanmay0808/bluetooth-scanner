@@ -1,4 +1,5 @@
 import React, { Component } from 'react';
+import BluetoothStateManager from 'react-native-bluetooth-state-manager';
 import {
   StyleSheet,
   Text,
@@ -10,6 +11,7 @@ import {
   PermissionsAndroid,
   ScrollView,
   FlatList,
+  ToastAndroid,
   AppState,
   Dimensions,
   Button,
@@ -39,7 +41,6 @@ export default class App extends Component {
   }
 
   componentDidMount() {
-    AppState.addEventListener('change', this.handleAppStateChange);
     BleManager.start();
 
     this.handlerDiscover = bleManagerEmitter.addListener('BleManagerDiscoverPeripheral', this.handleDiscoverPeripheral );
@@ -64,16 +65,35 @@ export default class App extends Component {
   }
 
   startScan() {
+    BluetoothStateManager.getState().then(btstate=>{
+      switch(btstate){
+        case 'Unknown':ToastAndroid.show("Manually Turn Bluetooth On",ToastAndroid.SHORT);
+                       break;
+        case 'Unsupported':ToastAndroid.show("Bluetooth Service Unsupported",ToastAndroid.SHORT);
+                           break;
+        case 'PoweredOff':BluetoothStateManager.requestToEnable().then(result=>{
+          if (BluetoothStateManager.getState().then(result=> result==="PoweredOn"))
+          {
+            ToastAndroid.show("Bluetooth Turned On",ToastAndroid.SHORT);
+          }else{
+            ToastAndroid.show("User Denied Permission",ToastAndroid.SHORT);
+          }
+        });
+        break;
+        default:break;
+      }
+    });
+
     if (!this.state.scanning) {
-      BleManager.scan([], 30).then((results) => {
-        console.log('Scanning...');
+      BleManager.scan([], 40).then((results) => {
+        ToastAndroid.show("Scanning Started...",ToastAndroid.SHORT);
         this.setState({scanning:true});
       });
     }
   }
   
   handleStopScan() {
-    alert('Scan is stopped');
+    ToastAndroid.show("Scanning Stopped",ToastAndroid.SHORT);
     this.setState({ scanning: false });
   }
 
@@ -85,13 +105,13 @@ export default class App extends Component {
       devices.set(peripheral.id, peripheral);
       this.setState({devices});
     }
-    console.log('Disconnected from ' + data.peripheral);
+    ToastAndroid.showWithGravity("Disconnected From " + data.peripheral,ToastAndroid.SHORT,ToastAndroid.CENTER);
   }
 
   retrieveConnected(){
     BleManager.getConnectedPeripherals([]).then((results) => {
       if (results.length == 0) {
-        alert('No Device Found')
+        ToastAndroid.showWithGravity("No Device Found",ToastAndroid.SHORT,ToastAndroid.CENTER);
       }
       console.log(results);
       var peripherals = this.state.devices;
@@ -108,7 +128,7 @@ export default class App extends Component {
     var devices = this.state.devices;
     console.log('Got BLE Device', peripheral);
     if (!peripheral.name) {
-      peripheral.name = 'NO NAME';
+      peripheral.name = 'No Name';
     }
     devices.set(peripheral.id, peripheral);
     this.setState({ devices });
@@ -127,10 +147,10 @@ export default class App extends Component {
             devices.set(peripheral.id, p);
             this.setState({devices});
           }
-          console.log('Connected to ' + peripheral.id);
+          ToastAndroid.showWithGravity("Connected To " + peripheral.id,ToastAndroid.SHORT,ToastAndroid.CENTER);
 
         }).catch((error) => {
-          console.log('Connection error', error);
+          ToastAndroid.showWithGravity("Error :" + error,ToastAndroid.SHORT,ToastAndroid.CENTER);
         });
       }
     }
